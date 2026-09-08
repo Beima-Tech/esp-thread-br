@@ -29,6 +29,13 @@ typedef enum {
     HYP_OTBR_EVENT_AUTO_START_READY,
     HYP_OTBR_EVENT_PARENT_READY,
     HYP_OTBR_EVENT_PARENT_NOT_READY,
+    /* Staged OTA WP4 (F-OTA-020): the H2 RCP path has a restart to make
+     * (recovery finished, or a version mismatch / RCP failure) but the running
+     * app image is still PENDING_VERIFY, so it is holding for the host's
+     * first-boot acceptance instead of rolling the update back (F-RCP-002).
+     * OpenThread does not start on this boot; the host's gate must not count
+     * Thread while this holds. Posted once per hold, with a DISABLED role. */
+    HYP_OTBR_EVENT_RCP_UPDATE_HOLDING_FOR_OTA,
 } hyp_otbr_event_id_t;
 
 typedef struct {

@@ -302,10 +302,12 @@ static void save_confirmed_rcp_version(const char *version)
 /* F-RCP-002: never restart out from under a pending OTA verification.
  *
  * The first boot after a gateway OTA runs with the new image in
- * ESP_OTA_IMG_PENDING_VERIFY, and that image is marked valid only when the OTA
- * agent gets the answer to its boot-time StartNext back from AWS
- * (otaPal_SetPlatformImageState -> ESP_OTA_IMG_VALID). Nothing else in the
- * firmware clears the pending state.
+ * ESP_OTA_IMG_PENDING_VERIFY. Since staged OTA WP4 (F-OTA-020) the image is
+ * marked valid by the HOST's first-boot gate (main/utils/ota_staging.c: MQTT
+ * connected on either broker path and one gateway status publish acknowledged,
+ * plus border router ready and CoAP serving - except while this path holds, see
+ * below), no longer by the OTA agent's boot-time StartNext answer. Nothing else
+ * in the firmware clears the pending state.
  *
  * Every restart in this file races that. The first boot after an update always
  * reflashes the H2, because the bundled RCP version no longer matches the one
@@ -348,6 +350,16 @@ static void wait_for_pending_ota_verification(const char *reason)
              "%s, but the running OTA image is still pending verification; waiting up to %d s "
              "so the restart cannot roll the update back",
              reason ? reason : "Restart requested", HYP_RCP_RESTART_OTA_WAIT_MS / 1000);
+
+    /* Staged OTA WP4: tell the host we are holding. OpenThread will not start on
+     * this boot (this path ends in a restart), so the host's gate must not wait
+     * for Thread while we wait for the host - that would be a cycle that only
+     * the timeout below could break, and it breaks it with a rollback. With this
+     * event the gate accepts on the cloud-side conditions alone, we see VALID
+     * within a second, restart, and the next boot brings Thread up as usual.
+     * No OT instance exists here, so the state carries a DISABLED role. */
+    post_otbr_event(HYP_OTBR_EVENT_RCP_UPDATE_HOLDING_FOR_OTA, NULL,
+                    "rcp-update-holding-for-ota", reason ? reason : "restart requested");
 
     while (waited_ms < HYP_RCP_RESTART_OTA_WAIT_MS) {
         vTaskDelay(pdMS_TO_TICKS(HYP_RCP_RESTART_OTA_POLL_MS));
